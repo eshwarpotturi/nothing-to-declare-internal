@@ -11,7 +11,7 @@ This is the named version of the [public dashboard](https://eshwarpotturi.github
 
 ## What is in it
 
-- 2,878 papers and 15,652 checked US authors (October 2023 to October 2026). 1,523 authors in 835 papers (3 in 10) did not declare payments.
+- 2,878 papers and 15,652 checked US authors (October 2023 to October 2026). 1,492 authors in 814 papers (nearly 3 in 10) did not declare payments.
 - **Checked by hand:** 10 cases with every dated payment record, plus the results of 43 random hand checks and what each error taught us.
 - A red flag is a question for an editor, not a finding of misconduct.
 
