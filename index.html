@@ -184,6 +184,37 @@ ul.mlist{list-style:none;margin:0;padding:0;border:1px solid var(--rule);border-
 .doi-wrap blockquote{margin:6px 0 14px;padding:10px 16px;border-left:4px solid var(--rule,#ddd);color:var(--ink2,#3b4654)}
 .doi-warn{color:var(--bad,#b3261e);font-weight:600}.doi-prog{font-weight:600}.doi-foot{font-size:16px;color:var(--muted,#5a6675);margin-top:28px}
 .doi-wrap a{color:#1d70b8}
+.doi-wait{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:30px;align-items:center;margin:22px 0;padding:24px;border:2px solid var(--rule,#ddd);border-radius:12px}
+.doi-scene svg{width:100%;height:auto;display:block}
+.doi-steps{list-style:none;margin:0 0 6px;padding:0}
+.doi-steps li{display:flex;gap:12px;align-items:flex-start;padding:7px 0;color:var(--muted,#5a6675);font-size:20px;line-height:1.35}
+.doi-steps li>i{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid currentColor;margin-top:2px;position:relative;box-sizing:border-box}
+.doi-steps li.on{color:var(--ink,#1b2430);font-weight:600}
+.doi-steps li.on>i{border-color:#1d70b8;animation:doipulse 1.3s ease-in-out infinite}
+.doi-steps li.done{color:var(--ink2,#3b4654)}
+.doi-steps li.done>i{background:var(--good,#1a7f4b);border-color:var(--good,#1a7f4b)}
+.doi-steps li.done>i::after{content:"";position:absolute;left:7px;top:2px;width:6px;height:12px;border:solid var(--paper,#fff);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.doi-years{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.doi-years span{font:600 15px var(--mono,monospace);padding:3px 11px;border:2px solid var(--rule,#ccc);border-radius:20px;color:var(--muted,#5a6675)}
+.doi-years span.on{border-color:#1d70b8;color:var(--ink,#1b2430);animation:doipulse 1.3s ease-in-out infinite}
+.doi-years span.done{background:var(--good,#1a7f4b);border-color:var(--good,#1a7f4b);color:var(--paper,#fff)}
+.doi-time{font:600 17px var(--mono,monospace);color:var(--ink2,#3b4654);margin:14px 0 4px}
+.doi-note{font-size:16px;color:var(--muted,#5a6675);margin:0}
+@keyframes doipulse{0%,100%{box-shadow:0 0 0 0 rgba(29,112,184,.55)}50%{box-shadow:0 0 0 7px rgba(29,112,184,0)}}
+@keyframes doihl{0%{transform:scaleX(0)}45%,80%{transform:scaleX(1)}100%{transform:scaleX(0)}}
+@keyframes doilens{0%{transform:translate(70px,104px)}22%{transform:translate(160px,112px)}44%{transform:translate(120px,150px)}66%{transform:translate(150px,190px)}88%{transform:translate(70px,196px)}100%{transform:translate(70px,104px)}}
+@keyframes doiau{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-4px);opacity:1}}
+@keyframes doilink{to{stroke-dashoffset:-18}}
+@keyframes doirow{0%,100%{opacity:.35}40%,60%{opacity:1}}
+@keyframes doistamp{0%,55%{opacity:0;transform:scale(1.25)}70%,100%{opacity:1;transform:scale(1)}}
+.doi-hl{transform-box:fill-box;transform-origin:left center;animation:doihl 3.6s ease-in-out infinite}
+.doi-lens{animation:doilens 7s ease-in-out infinite}
+.doi-au{animation:doiau 2s ease-in-out infinite}
+.doi-link{animation:doilink 1s linear infinite}
+.doi-row{animation:doirow 3.6s ease-in-out infinite}
+.doi-stamp{transform-box:fill-box;transform-origin:center;animation:doistamp 3.6s ease-in-out infinite;opacity:0}
+@media (prefers-reduced-motion:reduce){.doi-wait *{animation:none!important}.doi-stamp{opacity:1!important}}
+@media (max-width:820px){.doi-wait{grid-template-columns:1fr}}
 </style></head>
 <body><div class="ntd-tabs" role="tablist"><button role="tab" aria-selected="true" data-t="study">The study</button><button role="tab" aria-selected="false" data-t="fb">Food and beverage</button><button role="tab" aria-selected="false" data-t="pub">By publisher</button><button role="tab" aria-selected="false" data-t="doi">Check a DOI</button></div><div id="tab-study">
 <div class="internal">Internal. Contains real names. Not for public sharing.</div>
@@ -840,6 +871,7 @@ var NTDDOI = (function () {
   async function checkDoi(doi, opts) {
     var fetchJson = opts.fetchJson, progress = opts.progress || function () {};
     var res = { doi: doi, source: "live", steps: [] };
+    progress(0, 1, "Finding the paper");
     var q = await fetchJson("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=" +
       encodeURIComponent('DOI:"' + doi + '"') + "&format=json&resultType=core");
     var hit = q && q.resultList && q.resultList.result && q.resultList.result[0];
@@ -850,6 +882,7 @@ var NTDDOI = (function () {
     var authors = (hit.authorList && hit.authorList.author) || [];
     res.authorCount = authors.length;
     res.statement = ""; res.received = "";
+    progress(0, 1, "Reading the declaration");
     if (res.pmcid) {
       try {
         var xml = await opts.fetchText("https://www.ebi.ac.uk/europepmc/webservices/rest/" + res.pmcid + "/fullTextXML");
@@ -875,14 +908,15 @@ var NTDDOI = (function () {
     var years = []; for (var y = y0; y <= y1; y++) if (YEARS[y]) years.push(y);
     res.years = years;
     res.coverageNote = (y0 < 2020 || y1 > 2025) ? "Open Payments data held here covers 2020 to 2025. Part of this paper's window falls outside it." : "";
-    var total = years.length, done = 0;
-    progress(0, total, "Searching Open Payments");
+    var total = years.length, done = 0, doneYears = [];
+    progress(0, total, "Searching Open Payments", { years: years, done: [] });
     var allRows = [];
     await Promise.all(years.map(function (y) {
       return queryYear(fetchJson, y, us).then(function (r) { allRows = allRows.concat(r.rows); if (r.truncated) res.truncated = true; })
         .catch(function (e) { res.queryError = String(e.message || e); })
-        .then(function () { done++; progress(done, total, "Searching Open Payments"); });
+        .then(function () { done++; doneYears.push(y); progress(done, total, "Searching Open Payments", { years: years, done: doneYears.slice() }); });
     }));
+    progress(1, 1, "Comparing");
     if (res.queryError && !allRows.length) { throw new Error("Open Payments did not answer: " + res.queryError); }
     var found = [];
     us.forEach(function (p) {
@@ -989,6 +1023,7 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
 
   /* ---- Study result ---- */
   function showStudy(p) {
+    stopTimer();
     var D = data(), v = { green: "valid", red: "invalid", amber: "limited", grey: "cannot" }[p.s] || "cannot";
     var cases = (p.c || []).map(function (id) { return D.cases[id]; }).filter(Boolean);
     var h = '<div class="doi-tag">From the study (2,878 papers)</div>' + banner(v);
@@ -1015,6 +1050,7 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
 
   /* ---- Live result ---- */
   function showLive(r) {
+    stopTimer();
     var drop = food.checked;
     var v = r.verdict;
     if (r.people) { v = NTDDOI.decide(r, drop); r.verdict = v; }
@@ -1057,6 +1093,59 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
     var bk = document.getElementById("doi-back"); if (bk) bk.onclick = function () { run(r.doi); };
   }
 
+  /* ---- Wait screen: a journal article is read while payment records are matched ---- */
+  var WAIT_SVG = `<svg viewBox="0 0 360 232" role="img" aria-label="A journal article being read while payment records are matched">
+<rect x="38" y="14" width="180" height="204" rx="6" fill="var(--paper,#fff)" stroke="var(--ink,#1b2430)" stroke-opacity=".3" stroke-width="2"/>
+<rect x="28" y="22" width="180" height="204" rx="6" fill="var(--paper,#fff)" stroke="var(--ink,#1b2430)" stroke-width="2.5"/>
+<rect x="40" y="36" width="72" height="8" rx="2" fill="var(--ink,#1b2430)"/>
+<rect x="40" y="54" width="154" height="6" rx="2" fill="var(--ink,#1b2430)" opacity=".8"/><rect x="40" y="66" width="112" height="6" rx="2" fill="var(--ink,#1b2430)" opacity=".8"/>
+<g fill="#1d70b8"><circle class="doi-au" cx="46" cy="86" r="4"/><circle class="doi-au" style="animation-delay:.4s" cx="62" cy="86" r="4"/><circle class="doi-au" style="animation-delay:.8s" cx="78" cy="86" r="4"/><circle class="doi-au" style="animation-delay:1.2s" cx="94" cy="86" r="4"/><circle class="doi-au" style="animation-delay:1.6s" cx="110" cy="86" r="4"/></g>
+<g fill="var(--rule,#cfd4da)"><rect x="40" y="100" width="154" height="5" rx="2"/><rect x="40" y="111" width="140" height="5" rx="2"/><rect x="40" y="122" width="154" height="5" rx="2"/><rect x="40" y="133" width="120" height="5" rx="2"/><rect x="40" y="144" width="148" height="5" rx="2"/></g>
+<rect x="36" y="158" width="164" height="58" rx="4" fill="none" stroke="var(--warn,#b45f06)" stroke-width="2" stroke-dasharray="5 4"/>
+<rect x="44" y="165" width="96" height="6" rx="2" fill="var(--ink,#1b2430)" opacity=".75"/>
+<g fill="var(--rule,#cfd4da)"><rect x="44" y="178" width="148" height="5" rx="2"/><rect x="44" y="189" width="132" height="5" rx="2"/><rect x="44" y="200" width="120" height="5" rx="2"/></g>
+<g fill="#ffd24a" opacity=".7"><rect class="doi-hl" x="42" y="176" width="152" height="9" rx="2"/><rect class="doi-hl" style="animation-delay:.9s" x="42" y="187" width="138" height="9" rx="2"/><rect class="doi-hl" style="animation-delay:1.8s" x="42" y="198" width="126" height="9" rx="2"/></g>
+<g class="doi-lens"><circle cx="0" cy="0" r="20" fill="rgba(29,112,184,.12)" stroke="var(--ink,#1b2430)" stroke-width="4"/><path d="M14 14 L30 30" stroke="var(--ink,#1b2430)" stroke-width="6" stroke-linecap="round"/></g>
+<g fill="none" stroke="#1d70b8" stroke-width="2" stroke-dasharray="4 5" opacity=".8"><path class="doi-link" d="M200 86 C222 86 226 54 246 54"/><path class="doi-link" style="animation-delay:.5s" d="M200 86 C222 86 226 100 246 100"/><path class="doi-link" style="animation-delay:1s" d="M200 86 C222 86 226 146 246 146"/></g>
+<rect x="244" y="22" width="110" height="204" rx="6" fill="var(--paper,#fff)" stroke="var(--ink,#1b2430)" stroke-width="2.5"/>
+<rect x="254" y="32" width="64" height="7" rx="2" fill="var(--ink,#1b2430)"/>
+${[[48, 50], [68, 36], [88, 58], [108, 28], [128, 44], [148, 62]].map(function (r, i) {
+    return '<g class="doi-row" style="animation-delay:' + (i * 0.6) + 's"><rect x="254" y="' + r[0] + '" width="90" height="12" rx="3" fill="var(--rule,#cfd4da)"/><text x="259" y="' + (r[0] + 10) + '" font-size="10" font-weight="700" fill="var(--ink,#1b2430)">$</text><rect x="272" y="' + (r[0] + 3) + '" width="' + r[1] + '" height="6" rx="2" fill="var(--ink,#1b2430)" opacity=".5"/></g>';
+  }).join("")}
+<rect class="doi-stamp" x="258" y="184" width="82" height="26" rx="4" fill="none" stroke="var(--bad,#b3261e)" stroke-width="3"/>
+<text class="doi-stamp" x="299" y="202" text-anchor="middle" font-size="12" font-weight="800" fill="var(--bad,#b3261e)">CHECKING</text>
+</svg>`;
+  var STAGES = ["Finding the paper in Europe PMC", "Reading the declaration of interests", "Searching US payment records (Open Payments)", "Comparing what was declared with what was paid"];
+  var timer = null, t0 = 0;
+  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+  function waitMarkup() {
+    return '<div class="doi-wait" role="status" aria-live="polite"><div class="doi-scene">' + WAIT_SVG + '</div><div>' +
+      '<h3 style="margin:0 0 10px">Checking the paper. Please wait.</h3><ol class="doi-steps" id="doi-prog">' +
+      STAGES.map(function (x, i) { return '<li data-s="' + i + '"><i></i><span>' + x + (i === 2 ? '<span class="doi-years" id="doi-years"></span>' : "") + "</span></li>"; }).join("") +
+      '</ol><p class="doi-time" id="doi-time">Elapsed 0:00. A live check usually takes about a minute and a half.</p>' +
+      '<p class="doi-note">Open Payments is a large government database and answers slowly. The page is working. Please keep it open.</p></div></div>';
+  }
+  function startTimer() {
+    stopTimer(); t0 = Date.now();
+    timer = setInterval(function () {
+      var el = document.getElementById("doi-time"); if (!el) { stopTimer(); return; }
+      var s = Math.floor((Date.now() - t0) / 1000);
+      el.textContent = "Elapsed " + Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2) + ". A live check usually takes about a minute and a half.";
+    }, 1000);
+  }
+  function setStage(label, d, t, info) {
+    var idx = /^Finding/.test(label) ? 0 : /^Reading/.test(label) ? 1 : /^Searching/.test(label) ? 2 : 3;
+    document.querySelectorAll("#doi-prog li").forEach(function (li, i) {
+      li.className = i < idx ? "done" : (i === idx ? (idx === 3 && d >= t ? "done" : "on") : "");
+    });
+    var y = document.getElementById("doi-years");
+    if (info && info.years && y) {
+      y.innerHTML = info.years.map(function (yr) {
+        var dn = info.done.indexOf(yr) >= 0; return '<span class="' + (dn ? "done" : "on") + '">' + yr + (dn ? " ✓" : "") + "</span>";
+      }).join("");
+    }
+  }
+
   var token = 0;
   async function run(raw, force) {
     var doi = NTDDOI.normDoi(raw);
@@ -1065,21 +1154,21 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
     var my = ++token;
     var p = data().byDoi[doi];
     if (p && !force) { last = null; showStudy(p); return; }
-    out.innerHTML = '<p id="doi-prog" class="doi-prog">Looking up the paper…</p>';
+    out.innerHTML = waitMarkup(); startTimer(); setStage("Finding the paper", 0, 1);
     var fetchJson = async function (u, body) {
       var o = body ? { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(body) } : {};
       var res = await fetch(u, o); if (!res.ok) throw new Error("HTTP " + res.status + " from " + new URL(u).host); return res.json();
     };
     var fetchText = async function (u) { var res = await fetch(u); if (!res.ok) throw new Error("HTTP " + res.status); return res.text(); };
     try {
-      var r = await NTDDOI.checkDoi(doi, { fetchJson: fetchJson, fetchText: fetchText, progress: function (d, t, l) {
-        if (my !== token) return; var el = document.getElementById("doi-prog");
-        if (el) el.textContent = l + ": " + d + " of " + t + " years searched. This takes about a minute.";
+      var r = await NTDDOI.checkDoi(doi, { fetchJson: fetchJson, fetchText: fetchText, progress: function (d, t, l, info) {
+        if (my !== token) return; setStage(l, d, t, info);
       } });
       if (my !== token) return;
       last = r; showLive(r);
     } catch (e) {
       if (my !== token) return;
+      stopTimer();
       out.innerHTML = '<p class="doi-warn">The live check failed: ' + esc(e.message || e) + ". Try again in a minute.</p>";
     }
   }
