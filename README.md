@@ -4,6 +4,20 @@
 
 This is the named version of the [public dashboard](https://eshwarpotturi.github.io/nothing-to-declare/). It shows every flagged author by name, with links to the paper, Google Scholar, ORCID and their record in the US government's Open Payments database.
 
+## Live site
+
+https://eshwarpotturi.github.io/nothing-to-declare-internal/
+
+Tabs: The study, Food and beverage, By publisher, and **Check a DOI** (link straight to it: `/#doi`).
+
+## Check a DOI
+
+Enter a DOI to see whether the authors' declaration matches US payment records (Open Payments, 2020 to 2025).
+
+- **Paper in the study (2,878 papers):** shows the study's own result: valid, invalid, limited declaration or cannot check, with the payments behind it.
+- **Any other DOI:** checked live. The paper and its declaration come from Europe PMC. Payments come from the Open Payments API for US authors in the 36 months before the paper was submitted. Authors are matched by name and place, so each result links to the Open Payments record to check by hand.
+- **Check this paper live as well:** on a study paper, re-runs the live check so the two results can be compared.
+
 ## How to open it
 
 1. Click `index.html` above, then **Download raw file** (the download icon at the top right).
