@@ -184,6 +184,7 @@ ul.mlist{list-style:none;margin:0;padding:0;border:1px solid var(--rule);border-
 .doi-wrap blockquote{margin:6px 0 14px;padding:10px 16px;border-left:4px solid var(--rule,#ddd);color:var(--ink2,#3b4654)}
 .doi-warn{color:var(--bad,#b3261e);font-weight:600}.doi-prog{font-weight:600}.doi-foot{font-size:16px;color:var(--muted,#5a6675);margin-top:28px}
 .doi-wrap a{color:#1d70b8}
+.doi-cov th{width:170px;text-transform:none;font:600 17px var(--sans,Arial,sans-serif);color:var(--muted,#5a6675)}.doi-cov td{font-size:18px}
 .doi-wait{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:30px;align-items:center;margin:22px 0;padding:24px;border:2px solid var(--rule,#ddd);border-radius:12px}
 .doi-scene svg{width:100%;height:auto;display:block}
 .doi-steps{list-style:none;margin:0 0 6px;padding:0}
@@ -875,10 +876,12 @@ var NTDDOI = (function () {
     var q = await fetchJson("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=" +
       encodeURIComponent('DOI:"' + doi + '"') + "&format=json&resultType=core");
     var hit = q && q.resultList && q.resultList.result && q.resultList.result[0];
-    if (!hit) { res.verdict = "notfound"; res.why = "Europe PMC has no paper with this DOI."; return res; }
+    res.record = !!hit; res.fullText = "n/a"; res.declaration = "n/a"; res.paymentsSearched = false;
+    if (!hit) { res.verdict = "notfound"; res.why = "This DOI is not in Europe PMC (PubMed and PubMed Central), so it cannot be checked here."; return res; }
     res.title = hit.title; res.journal = hit.journalTitle || (hit.journalInfo && hit.journalInfo.journal && hit.journalInfo.journal.title) || "";
     res.pubDate = hit.firstPublicationDate || hit.dateOfCreation || "";
     res.pmcid = hit.pmcid || "";
+    res.fullText = res.pmcid ? "yes" : "none";
     var authors = (hit.authorList && hit.authorList.author) || [];
     res.authorCount = authors.length;
     res.statement = ""; res.received = "";
@@ -887,7 +890,15 @@ var NTDDOI = (function () {
       try {
         var xml = await opts.fetchText("https://www.ebi.ac.uk/europepmc/webservices/rest/" + res.pmcid + "/fullTextXML");
         var ft = parseFullText(xml); res.statement = ft.statement; res.received = ft.received;
-      } catch (e) { res.fullTextError = String(e.message || e); }
+      } catch (e) { res.fullTextError = String(e.message || e); res.fullText = "error"; }
+    }
+    res.declaration = res.statement ? "read" : "missing";
+    if (!res.statement && !opts.anyway) {
+      res.verdict = "notext";
+      res.why = res.fullText === "none" ? "The paper is in Europe PMC, but its full text is not in PubMed Central, so we cannot read what the authors declared. Full text is held only for open-access papers, whichever the publisher."
+        : res.fullText === "error" ? "The full text could not be downloaded from Europe PMC just now, so we cannot read the declaration. Try again in a minute."
+        : "The full text was found, but we could not find a declaration section in it.";
+      return res;
     }
     res.windowEnd = res.received || res.pubDate;
     res.windowEndKind = res.received ? "received" : "published";
@@ -931,6 +942,7 @@ var NTDDOI = (function () {
           date: isoDate(r.date_of_payment), nature: r.nature_of_payment_or_transfer_of_value };
       }) });
     });
+    res.paymentsSearched = true;
     res.people = found;
     res.verdict = decide(res, true);
     return res;
@@ -994,7 +1006,8 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
     limited: { cls: "warn", head: "Limited declaration", line: "The declaration is limited (“no relevant conflicts”, “none for this work” or “see elsewhere”), so it can’t be called valid or invalid." },
     nostatement: { cls: "warn", head: "No declaration found", line: "Payments were found, but we could not read a declaration in the paper." },
     cannot: { cls: "none", head: "Cannot check", line: "There was not enough to check this paper." },
-    notfound: { cls: "none", head: "Paper not found", line: "No paper with this DOI was found." }
+    notfound: { cls: "none", head: "Paper not found", line: "" },
+    notext: { cls: "warn", head: "Paper found, declaration not readable", line: "" }
   };
 
   root.innerHTML =
@@ -1006,7 +1019,7 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
     '<button type="submit" id="doi-go">Check</button></form>' +
     '<label class="doi-opt"><input type="checkbox" id="doi-food"> Ignore food and beverage payments</label>' +
     '<div id="doi-out" aria-live="polite"></div>' +
-    '<p class="doi-foot">How it works: papers in the study use the study’s own results. Any other DOI is checked live: the paper and declaration come from Europe PMC, and payments come from Open Payments for US authors in the 36 months before the paper was submitted. Authors are matched by name and place, so check each result against the links shown.</p>' +
+    '<p class="doi-foot">How it works: papers in the study use the study’s own results. Any other DOI is checked live: the paper and declaration come from Europe PMC, and payments come from Open Payments for US authors in the 36 months before the paper was submitted. Authors are matched by name and place, so check each result against the links shown. A paper can only be checked if it is in Europe PMC and its full text is in PubMed Central. That depends on open access, not on the publisher: Wiley, Springer, Elsevier and Oxford papers are covered when they are open access.</p>' +
     '</div>';
 
   var out = root.querySelector("#doi-out"), input = root.querySelector("#doi-in"), food = root.querySelector("#doi-food");
@@ -1048,6 +1061,16 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
     document.getElementById("doi-live").onclick = function () { run(p.doi, true); };
   }
 
+  function covHtml(r) {
+    var rows = [
+      ["Paper record", r.record ? "Found in Europe PMC" : "Not found in Europe PMC (PubMed and PubMed Central)"],
+      ["Full text", r.fullText === "yes" ? "Available in PubMed Central" : r.fullText === "none" ? "Not in PubMed Central (usually not open access)" : r.fullText === "error" ? "Could not be downloaded" : "Not reached"],
+      ["Declaration", r.declaration === "read" ? "Read from the full text" : r.declaration === "missing" ? "Could not be read" : "Not reached"],
+      ["US payments", r.paymentsSearched ? "Searched in Open Payments" : "Not searched"]
+    ];
+    return '<h4>What we could check</h4><table class="ptab doi-cov"><tbody>' + rows.map(function (x) { return "<tr><th>" + x[0] + "</th><td>" + x[1] + "</td></tr>"; }).join("") + "</tbody></table>";
+  }
+
   /* ---- Live result ---- */
   function showLive(r) {
     stopTimer();
@@ -1057,15 +1080,24 @@ if (typeof module !== "undefined") module.exports = NTDDOI;
     var inStudy = !!data().byDoi[r.doi];
     var h = '<div class="doi-tag">' + (inStudy ? "Checked live (this paper is also in the study)" : "Checked live (not in the study)") + "</div>" +
       (inStudy ? ' <button type="button" class="doi-alt" id="doi-back">Show the study result</button>' : "") + banner(v, r.why || "");
-    if (!r.title) { out.innerHTML = h; return; }
+    if (!r.title) { out.innerHTML = h + covHtml(r); return; }
     h += "<h3>" + esc(r.title) + "</h3>";
+    if (v === "notext") {
+      h += facts([["DOI", doiLink(r.doi)], r.journal ? ["Journal", esc(r.journal)] : null, ["Authors", r.authorCount + " in total."]]) + covHtml(r) +
+        '<p class="doi-foot"><button type="button" class="doi-alt" id="doi-any">Look up the payments anyway</button> This takes about a minute and a half. Without the declaration it shows the payments found but cannot say valid or invalid.</p>';
+      out.innerHTML = h;
+      var ab = document.getElementById("doi-any"); if (ab) ab.onclick = function () { run(r.doi, true, true); };
+      var bk0 = document.getElementById("doi-back"); if (bk0) bk0.onclick = function () { run(r.doi); };
+      return;
+    }
     h += facts([["DOI", doiLink(r.doi)], r.journal ? ["Journal", esc(r.journal)] : null,
       ["Window checked", esc(r.windowStart) + " to " + esc(r.windowEnd) + " (36 months before the paper was " + (r.windowEndKind === "received" ? "received" : "published") + ")"],
       ["Authors", r.authorCount + " in total. " + r.usAuthors + " with a US address were looked up."]]);
     if (r.coverageNote) h += '<p class="doi-warn">' + esc(r.coverageNote) + "</p>";
+    h += covHtml(r);
     h += "<h4>What the paper declares</h4>";
     h += r.statement ? "<blockquote>" + esc(r.statement.slice(0, 1200)) + (r.statement.length > 1200 ? "…" : "") + "</blockquote>"
-      : "<p>We could not read a declaration. Only open-access papers in Europe PMC have text we can read. " + (r.pmcid ? "" : "This paper is not in the open full-text set.") + "</p>";
+      : "<p>We could not read a declaration in this paper.</p>";
     var shown = 0;
     (r.people || []).forEach(function (f) {
       if (!f.pick.profile && !f.pick.ambiguous) return;
@@ -1147,7 +1179,7 @@ ${[[48, 50], [68, 36], [88, 58], [108, 28], [128, 44], [148, 62]].map(function (
   }
 
   var token = 0;
-  async function run(raw, force) {
+  async function run(raw, force, anyway) {
     var doi = NTDDOI.normDoi(raw);
     if (!doi) { out.innerHTML = '<p class="doi-warn">Enter a DOI that starts with 10. For example 10.1002/pbc.32046</p>'; return; }
     try { history.replaceState(null, "", "#doi=" + encodeURIComponent(doi)); } catch (e) {}
@@ -1161,7 +1193,7 @@ ${[[48, 50], [68, 36], [88, 58], [108, 28], [128, 44], [148, 62]].map(function (
     };
     var fetchText = async function (u) { var res = await fetch(u); if (!res.ok) throw new Error("HTTP " + res.status); return res.text(); };
     try {
-      var r = await NTDDOI.checkDoi(doi, { fetchJson: fetchJson, fetchText: fetchText, progress: function (d, t, l, info) {
+      var r = await NTDDOI.checkDoi(doi, { anyway: !!anyway, fetchJson: fetchJson, fetchText: fetchText, progress: function (d, t, l, info) {
         if (my !== token) return; setStage(l, d, t, info);
       } });
       if (my !== token) return;

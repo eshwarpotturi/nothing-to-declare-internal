@@ -16,6 +16,7 @@ Enter a DOI to see whether the authors' declaration matches US payment records (
 
 - **Paper in the study (2,878 papers):** shows the study's own result: valid, invalid, limited declaration or cannot check, with the payments behind it.
 - **Any other DOI:** checked live. The paper and its declaration come from Europe PMC. Payments come from the Open Payments API for US authors in the 36 months before the paper was submitted. Authors are matched by name and place, so each result links to the Open Payments record to check by hand.
+- **What can be checked:** the paper must be in Europe PMC (PubMed and PubMed Central), and its full text must be in PubMed Central so the declaration can be read. That depends on open access, not on the publisher: Wiley, Springer, Elsevier and Oxford papers are covered when they are open access. The page says which of these applies: "Paper not found" (not in Europe PMC) or "Paper found, declaration not readable" (no full text). For the second, a button looks up payments anyway.
 - **Check this paper live as well:** on a study paper, re-runs the live check so the two results can be compared.
 
 ## How to open it
